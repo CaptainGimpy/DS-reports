@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PASS &amp; Ticket to Work — Failure Mode Analysis</title>
+<style>
+  :root {
+    --bg: #0d0e12;
+    --bg2: #12141a;
+    --panel: #181b22;
+    --panel2: #1d212a;
+    --border: #262c37;
+    --border2: #333a47;
+    --ink: #e9ebf1;
+    --mut: #9aa4b4;
+    --dim: #6b7485;
+    --accent: #e0a83c;
+    --accent2: #7fb8e6;
+    --good: #7ac76a;
+    --warn: #d98a5f;
+    --danger: #d16f6f;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    padding: 0 24px 80px;
+  }
+  .container { max-width: 880px; margin: 0 auto; }
+
+  header { padding: 60px 0 36px; border-bottom: 1px solid var(--border); margin-bottom: 48px; }
+  .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; }
+  h1 { font-family: var(--sans); font-weight: 700; font-size: 34px; line-height: 1.15; letter-spacing: -0.02em; }
+  h1 em { font-style: italic; color: var(--accent2); }
+  .lede { margin-top: 16px; font-size: 16px; color: var(--mut); max-width: 38em; }
+  .meta { display: flex; gap: 24px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border); font-family: var(--mono); font-size: 11.5px; color: var(--dim); flex-wrap: wrap; }
+
+  h2 { font-weight: 600; font-size: 26px; margin: 44px 0 12px; letter-spacing: -0.01em; }
+  h3 { font-weight: 600; font-size: 19px; margin: 32px 0 8px; }
+  p { margin-bottom: 14px; color: var(--mut); font-size: 15px; }
+  p strong, p b { color: var(--ink); }
+  code { font-family: var(--mono); font-size: 0.87em; background: var(--bg2); border: 1px solid var(--border); padding: 1px 6px; border-radius: 5px; color: var(--accent2); }
+
+  /* Charts */
+  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+  @media (max-width: 640px) { .chart-grid { grid-template-columns: 1fr; } }
+  .chart-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .chart-card h4 { font-size: 13px; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+  .chart-card .value { font-size: 28px; font-weight: 700; color: var(--ink); }
+  .chart-card .sub { font-size: 12px; color: var(--dim); margin-top: 2px; }
+
+  .bar-chart { margin: 10px 0; }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .bar-label { font-size: 13px; color: var(--mut); min-width: 140px; text-align: right; }
+  .bar-track { flex: 1; height: 24px; background: var(--bg2); border-radius: 6px; overflow: hidden; position: relative; }
+  .bar-fill { height: 100%; border-radius: 6px; display: flex; align-items: center; padding-left: 10px; font-size: 11px; font-family: var(--mono); color: #fff; }
+  .bar-fill.danger { background: linear-gradient(90deg, #d16f6f, #b94a4a); }
+  .bar-fill.warn { background: linear-gradient(90deg, #d98a5f, #c07040); }
+  .bar-fill.good { background: linear-gradient(90deg, #7ac76a, #5aab4a); }
+  .bar-fill.accent { background: linear-gradient(90deg, #7fb8e6, #5a9ad4); }
+
+  /* Horizontal stacked bar for participation */
+  .stacked-bar { height: 36px; border-radius: 8px; overflow: hidden; display: flex; margin: 8px 0; }
+  .stacked-bar .seg { display: flex; align-items: center; justify-content: center; font-size: 10px; font-family: var(--mono); color: #fff; font-weight: 600; }
+  .seg.never { background: #333; flex: 99; }
+  .seg.participate { background: #7fb8e6; flex: 1; }
+  .seg.success { background: #7ac76a; flex: 0.01; }
+
+  .callout {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--danger);
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-size: 14px;
+    color: var(--mut);
+    margin: 16px 0;
+  }
+  .callout.good { border-left-color: var(--good); }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout.accent { border-left-color: var(--accent2); }
+
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  th { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); border-bottom-color: var(--border2); }
+  td { color: var(--mut); }
+  td:first-child { font-weight: 600; color: var(--ink); }
+
+  .quote {
+    border-left: 3px solid var(--accent);
+    padding: 4px 0 4px 22px;
+    margin: 20px 0;
+    color: var(--mut);
+    font-style: italic;
+    font-size: 16px;
+  }
+  .quote small { display: block; font-family: var(--mono); font-style: normal; font-size: 11px; color: var(--dim); margin-top: 8px; letter-spacing: 0.06em; }
+
+  .source-list { margin: 20px 0; }
+  .source-list li { color: var(--mut); font-size: 13px; margin-bottom: 6px; }
+
+  .share-banner {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin: 40px 0 20px;
+    text-align: center;
+  }
+  .share-banner p { font-size: 14px; color: var(--dim); margin: 0; }
+
+  section { margin-bottom: 24px; }
+  .anchor { scroll-margin-top: 24px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <div class="kicker">Research Report · August 2026</div>
+  <h1>PASS &amp; Ticket to Work — <em>Failure Mode Analysis</em></h1>
+  <p class="lede">An evidence-based examination of SSA's two primary return-to-work programs: official data, GAO audits, academic research, and community testimony from beneficiaries who actually went through them.</p>
+  <div class="meta">
+    <span>SOURCES · GAO, SSA OIG, SSB, Peer-Reviewed Journals</span>
+    <span>STATUS · Public Domain</span>
+    <span>SHARE · Freely Reproduce</span>
+  </div>
+</header>
+
+<!-- ===== KEY STATS ===== -->
+<section>
+  <h2>At a Glance</h2>
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h4>Ticket to Work Participation</h4>
+      <div class="value">&lt;1%</div>
+      <div class="sub">of eligible beneficiaries assigned their ticket (GAO 2011)</div>
+    </div>
+    <div class="chart-card">
+      <h4>Successful Exits After 7 Years</h4>
+      <div class="value">0.01%</div>
+      <div class="sub">1,400 of 12.2 million tickets issued (Autor &amp; Duggan 2010)</div>
+    </div>
+    <div class="chart-card">
+      <h4>ENs That Received Most Payments</h4>
+      <div class="value">&lt;2%</div>
+      <div class="sub">20 ENs got majority of all SSA ticket payments (GAO 2011)</div>
+    </div>
+    <div class="chart-card">
+      <h4>Cost-Effectiveness</h4>
+      <div class="value" style="color: var(--danger);">FAIL</div>
+      <div class="sub">Benefit savings did not offset program costs (SSA OIG 2008)</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== PARTICIPATION VISUAL ===== -->
+<section>
+  <h2>The Participation Gap</h2>
+  <p>Every eligible beneficiary receives a "ticket." Almost no one uses it. Of those who do, almost none achieve the stated goal of leaving the disability rolls.</p>
+  <div class="chart-card">
+    <h4>Every 100 eligible beneficiaries</h4>
+    <div class="stacked-bar">
+      <div class="seg never" style="flex: 98;">98 never participate</div>
+      <div class="seg participate" style="flex: 2;">2 try TTW</div>
+      <div class="seg success" style="flex: 0.01;">&lt;0.01 succeed</div>
+    </div>
+    <div class="sub" style="margin-top: 6px;">Based on Livermore &amp; Roche (2011) and Autor &amp; Duggan (2010). Gray = never participated. Blue = attempted. Green = successfully exited benefits.</div>
+  </div>
+</section>
+
+<!-- ===== TICKET TO WORK ===== -->
+<section id="ttw" class="anchor">
+  <h2>1. Ticket to Work (TTW)</h2>
+
+  <h3>1.1 Official Participation Data</h3>
+  <table>
+    <tr><th>Metric</th><th>Source</th><th>Finding</th></tr>
+    <tr><td>Ticket assignment rate</td><td>GAO-11-324 (2011)</td><td>Less than <strong>1%</strong> of eligible beneficiaries</td></tr>
+    <tr><td>Overall participation</td><td>Livermore &amp; Roche (2011)</td><td>Only <strong>~2%</strong> of disability recipients</td></tr>
+    <tr><td>Successful workforce exit</td><td>Autor &amp; Duggan (2010)</td><td><strong>1,400 of 12.2 million tickets</strong> (0.01%)</td></tr>
+    <tr><td>Cost-effectiveness</td><td>SSA OIG (2008)</td><td><strong>Not cost-effective</strong> — costs exceeded savings</td></tr>
+  </table>
+
+  <h3>1.2 GAO Audit Findings (GAO-11-324, May 2011)</h3>
+  <p>The Government Accountability Office conducted a comprehensive audit and found:</p>
+  <ul style="list-style: none; padding: 0; margin: 0 0 16px;">
+    <li style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--mut);">🔴 <strong>SSA lacks adequate management tools</strong> to systematically evaluate ticket holders and ENs</li>
+    <li style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--mut);">🔴 <strong>Performance measures for ENs never developed</strong> — required by law, never implemented</li>
+    <li style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--mut);">🔴 <strong>No monitoring since 2005</strong> — SSA failed to enforce progress requirements for 6+ years</li>
+    <li style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--mut);">🔴 <strong>20 ENs (&lt;2%)</strong> received the majority of all SSA ticket payments</li>
+    <li style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--mut);">🔴 <strong>3 ENs with zero services</strong> — received over $4M in payments, simply passed 75% back to ticket holders already working</li>
+  </ul>
+
+  <div class="callout">
+    <strong>Key finding:</strong> Two of the largest ENs in the program passed back 75% of SSA's ticket payments to ticket holders and kept the other 25% — providing no services at all. They collected tax dollars for finding people who were <em>already working</em> and took a cut.
+  </div>
+
+  <h3>1.3 SSA's Own Research</h3>
+  <p>From the Social Security Bulletin, Vol. 83, No. 1 (2023), an SSA-published evaluation of TTW outcomes through 2016:</p>
+  <div class="quote">
+    "The program did not achieve the lofty changes many had anticipated."
+    <small>— O'Leary &amp; Roessel, Social Security Bulletin, 2023</small>
+  </div>
+  <div class="quote">
+    "Fewer than 1,400 tickets (0.01 percent) of 12.2 million tickets issued in the first seven years of the program led to successful workforce integration."
+    <small>— Autor &amp; Duggan, cited in SSB Vol. 83</small>
+  </div>
+  <div class="quote">
+    "By December 2005, a mere 1.8% of disability beneficiaries were participating in the TTW program in the 13 Phase 1 states."
+    <small>— Eimicke, Cohen, and Miller, cited in SSB Vol. 83</small>
+  </div>
+  <div class="quote">
+    "ENs as well as SVRAs were losing interest in the program."
+    <small>— Early 2007 observation, cited in SSB Vol. 83</small>
+  </div>
+
+  <h3>1.4 Academic Analysis</h3>
+  <p>A peer-reviewed analysis from Grand Valley State University (Mavis, 2017) concluded:</p>
+  <div class="quote">
+    "The Social Security Administration's Ticket to Work Program: A Failed Return-to-Work Strategy."
+    <small>— Mavis, SPNHA Review, Vol. 13, 2017</small>
+  </div>
+  <ul style="list-style: none; padding: 0; margin: 0 0 16px;">
+    <li style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--mut);">📊 <strong>"Very poor track record"</strong> for returning recipients to the workforce</li>
+    <li style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--mut);">📊 Primary barrier: <strong>fear of losing guaranteed income and healthcare</strong></li>
+    <li style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--mut);">📊 Those who tried encountered <strong>"vocational resource professionals not responsive to their needs"</strong></li>
+    <li style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--mut);">📊 2008 regulatory reforms <strong>"still did not translate into full-time employment"</strong></li>
+  </ul>
+
+  <h3>1.5 Community Testimony</h3>
+  <p>From Reddit communities r/SocialSecurity, r/SSDI, and disability advocacy forums (2023-2026):</p>
+  <div class="quote">
+    "Ticket to Work is a death trap."
+    <small>— r/SocialSecurity</small>
+  </div>
+  <div class="quote">
+    "I've heard horror stories about going back to work on SSDI — your health insurance IS NOT GUARANTEED and you can lose your benefits."
+    <small>— r/SSDI</small>
+  </div>
+  <div class="quote">
+    "The ticket to work program is nothing but a headache."
+    <small>— r/SocialSecurity</small>
+  </div>
+  <div class="callout warn">
+    <strong>Common pattern:</strong> Beneficiaries report that once you attempt TTW and fail, <strong>reinstatement can take a year or more</strong>, leaving you without housing, income, or healthcare in the gap. Multiple users report being kicked off benefits entirely after attempting the program with no safety net.
+  </div>
+</section>
+
+<!-- ===== PASS ===== -->
+<section id="pass" class="anchor">
+  <h2>2. Plan to Achieve Self-Support (PASS)</h2>
+
+  <h3>2.1 Structural Issues</h3>
+  <table>
+    <tr><th>Issue</th><th>Detail</th></tr>
+    <tr><td>Paperwork burden</td><td>10-20 hours to complete a PASS plan (Wisconsin DVR)</td></tr>
+    <tr><td>Approval rate</td><td>Not consistently tracked — no GAO-level audit exists</td></tr>
+    <tr><td>Program goal</td><td>"Eventually reduce or eliminate an individual's SSI benefit" (MGB Health)</td></tr>
+    <tr><td>Staff knowledge</td><td>SSA field office staff frequently lack training on PASS processing</td></tr>
+  </table>
+
+  <h3>2.2 Failure Modes</h3>
+  <ul style="list-style: none; padding: 0; margin: 0 0 16px;">
+    <li style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--mut);">❌ <strong>PASS is a deferral, not a solution.</strong> It sets aside income temporarily, but the end state is benefit reduction/elimination. It does not solve the benefit cliff.</li>
+    <li style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--mut);">❌ <strong>10-20 hours of paperwork</strong> with no guarantee of acceptance. Requires detailed projections that are inherently uncertain.</li>
+    <li style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--mut);">❌ <strong>No benefit cliff protection.</strong> Once the plan ends, the full force of income/asset limits applies. If the work attempt fails, you're left with reduced benefits.</li>
+    <li style="padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--mut);">❌ <strong>Rarely used, poorly understood.</strong> Even counselors who recommend PASS rarely understand the implementation details.</li>
+  </ul>
+  <div class="quote">
+    "PASS doesn't work well."
+    <small>— r/SocialSecurity community testimony</small>
+  </div>
+</section>
+
+<!-- ===== COMBINED FAILURES ===== -->
+<section id="combined" class="anchor">
+  <h2>3. Combined Failure Modes</h2>
+
+  <table>
+    <tr><th>Failure Mode</th><th>TTW</th><th>PASS</th><th>Detail</th></tr>
+    <tr><td>Benefit cliff</td><td style="color: var(--danger);">✅</td><td style="color: var(--danger);">✅</td><td>Both lead to benefit reduction/elimination with no graceful taper</td></tr>
+    <tr><td>Healthcare loss risk</td><td style="color: var(--danger);">✅</td><td style="color: var(--danger);">✅</td><td>Fear of losing Medicaid/Medicare is the #1 barrier cited in every study</td></tr>
+    <tr><td>CDR trigger</td><td style="color: var(--danger);">✅</td><td style="color: var(--dim);">—</td><td>TTW participation can trigger a Continuing Disability Review</td></tr>
+    <tr><td>Admin burden</td><td style="color: var(--danger);">✅</td><td style="color: var(--danger);">✅</td><td>Both require navigating SSA's broken bureaucracy</td></tr>
+    <tr><td>Staff incompetence</td><td style="color: var(--danger);">✅</td><td style="color: var(--danger);">✅</td><td>SSA field office staff lack training on both programs</td></tr>
+    <tr><td>No guaranteed outcome</td><td style="color: var(--danger);">✅</td><td style="color: var(--danger);">✅</td><td>Neither guarantees employment at the end</td></tr>
+    <tr><td>Reinstatement gap</td><td style="color: var(--danger);">✅</td><td style="color: var(--danger);">✅</td><td>If work attempt fails, reinstatement can take a year or more</td></tr>
+  </table>
+
+  <div class="callout">
+    <strong>The real cost:</strong> Both programs assume the SSA system functions correctly. If the same system that loses $328 payments, generates contradictory automated notices, and takes 5 months to process income reports is administering your PASS or TTW plan — the failure rate is baked into the infrastructure.
+  </div>
+</section>
+
+<!-- ===== TALKING POINTS ===== -->
+<section id="talking-points" class="anchor">
+  <h2>4. Talking Points</h2>
+  <p>Ready-to-use counters when someone recommends these programs:</p>
+
+  <div class="callout accent">
+    <strong>"TTW has a &lt;1% participation rate and a 0.01% success rate after 7 years. Those are the SSA's own numbers. Why would I trust a program that the GAO says SSA can't even manage?"</strong>
+  </div>
+  <div class="callout accent">
+    <strong>"PASS takes 10-20 hours of paperwork, has no guaranteed approval, and its end goal is eliminating my benefits. That's not a path to stability — that's a gamble with my housing and food."</strong>
+  </div>
+  <div class="callout accent">
+    <strong>"The GAO found that the largest ENs in the TTW program provided no actual services — they just pocketed 25% of SSA payments. The program is structurally corrupt."</strong>
+  </div>
+  <div class="callout accent">
+    <strong>"What's the conversion rate? Not the brochure rate — the actual rate. Because SSA's own data says 0.01%. What's the plan for when I'm one of the 99.99% that this doesn't work for?"</strong>
+  </div>
+</section>
+
+<!-- ===== SOURCES ===== -->
+<section id="sources" class="anchor">
+  <h2>Sources</h2>
+  <ol class="source-list">
+    <li>GAO-11-324 — Social Security Disability: Ticket to Work Participation Has Increased, but Additional Oversight Needed (2011)</li>
+    <li>SSA Office of the Inspector General, Report A-02-07-17048 — Ticket to Work and Self-Sufficiency Program Cost Effectiveness (2008)</li>
+    <li>Social Security Bulletin, Vol. 83, No. 1 — Effects of the Ticket to Work Program: Return on Investment and Overall Assessment (O'Leary &amp; Roessel, 2023)</li>
+    <li>Autor &amp; Duggan (2010) — cited in Social Security Bulletin Vol. 83, No. 1</li>
+    <li>Mavis, Julie (2017) — "The Social Security Administration's Ticket to Work Program: A Failed Return-to-Work Strategy," SPNHA Review, Vol. 13, Grand Valley State University</li>
+    <li>Livermore &amp; Roche (2011) — cited in Mavis (2017)</li>
+    <li>r/SocialSecurity, r/SSDI — community testimony, multiple threads (2023-2026)</li>
+    <li>Wisconsin Department of Workforce Development — PASS plan completion time estimates</li>
+    <li>MGB Health — PASS program goal documentation</li>
+    <li>SSA Disability Research — Ticket to Work Program Evaluation reports (Mathematica Policy Research)</li>
+  </ol>
+</section>
+
+<div class="share-banner">
+  <p>This document is free to reproduce and share. Data sourced from GAO, SSA, and peer-reviewed research.</p>
+  <p style="margin-top: 8px; font-size: 12px; color: var(--dim);">Prepared August 12, 2026</p>
+</div>
+
+</div>
+</body>
+</html>
